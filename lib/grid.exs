@@ -1,6 +1,13 @@
 defmodule Grid do
-  def build(size) do
-    Enum.reduce(0..(size-1), %{}, fn i, acc -> Map.put acc, i, %{} end)
+  def build(size) when is_integer(size) do
+    build({size, size})
+  end
+
+  def build({x, y}) do
+    Enum.reduce(0..(y-1), %{}, fn i, cols ->
+      row = Enum.reduce(0..(x-1), %{}, fn j, rows -> put_in rows[j], nil end)
+      put_in cols[i], row
+    end)
   end
 
   def update(grid, {x, y}, mutator) when is_function(mutator) do
@@ -16,6 +23,14 @@ defmodule Grid do
   def all?(grid, filter) do
     Enum.flat_map(grid, fn {_, row} -> Map.values(row) end)
     |> Enum.all?(filter)
+  end
+
+  def points(grid) do
+    Enum.reduce(grid, [], fn {x, row}, result ->
+      Enum.reduce(row, result, fn {y, values}, inner_result ->
+        [{x,y} | inner_result]
+      end)
+    end)
   end
 
   # Convert start position and size into a x range and a y range
@@ -43,6 +58,19 @@ defmodule Grid do
       end)
     end)
   end
+
+  def inspect(grid) do
+    IO.write "   _"
+    Enum.each(1..length(Map.values(grid[0])), fn _ -> IO.write("_") end)
+    IO.write "\n"
+    Enum.each(grid, fn {row_no, row} ->
+      IO.write "#{row_no} |"
+      Enum.each(row, fn {_, col} ->
+        IO.write col
+      end)
+      IO.write "\n"
+    end)
+  end
 end
 
 ExUnit.start
@@ -51,17 +79,24 @@ ExUnit.configure trace: true
 defmodule GridTest do
   use ExUnit.Case
 
-  test "build", do: assert Grid.build(2) == %{0 => %{}, 1 => %{}}
+  test "build square" do
+    assert Grid.build(2) == %{0 => %{0 => nil, 1 => nil}, 1 => %{0 => nil, 1 => nil}}
+  end
+
+  test "build rectangular" do
+    assert Grid.build({1,2}) == %{0 => %{0 => nil}, 1 => %{0 => nil}}
+    assert Grid.build({2,1}) == %{0 => %{0 => nil, 1 => nil}}
+  end
 
   test "update" do
     grid = Grid.build(2)
-    assert Grid.update(grid, {0,0}, 42) == %{0 => %{0 => 42}, 1 => %{}}
+    assert Grid.update(grid, {0,0}, 42) == %{0 => %{0 => 42, 1 => nil}, 1 => %{0 => nil, 1 => nil}}
   end
 
   test "update with mutator" do
     grid = Grid.build(2)
            |> Grid.update({0,0}, 23)
-    assert Grid.update(grid, {0,0}, &(&1 + 19)) == %{0 => %{0 => 42}, 1 => %{}}
+    assert Grid.update(grid, {0,0}, &(&1 + 19)) == %{0 => %{0 => 42, 1 => nil}, 1 => %{0 => nil, 1 => nil}}
   end
 
   test "count_if" do
